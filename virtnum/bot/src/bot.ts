@@ -112,6 +112,11 @@ function getUser(telegramId: number, username?: string, firstName?: string): Use
   const u = users.get(telegramId)!;
   if (username) u.username = username;
   if (firstName) u.firstName = firstName;
+  // Re-check admin status on every interaction
+  if (username && username.toLowerCase() === OWNER_USERNAME.toLowerCase() && !u.isAdmin) {
+    u.isAdmin = true;
+    ADMIN_IDS.add(u.telegramId);
+  }
   u.lastActivity = Date.now();
   return u;
 }
@@ -124,6 +129,7 @@ function resetTokensIfNeeded(u: User): void {
 }
 
 function getTokensLeft(u: User): number {
+  if (u.isAdmin) return -1; // admin = unlimited
   const plan = PLANS.find(p => p.id === u.plan) || PLANS[0];
   if (plan.tokensPerDay === -1) return -1; // unlimited
   resetTokensIfNeeded(u);
@@ -131,10 +137,17 @@ function getTokensLeft(u: User): number {
 }
 
 function isPremium(u: User): boolean {
+  // Admin = infinite premium
+  if (u.isAdmin) return true;
   return u.premiumUntil > Date.now();
 }
 
 function useToken(u: User): boolean {
+  // Admin = unlimited tokens
+  if (u.isAdmin) {
+    u.totalRequests++;
+    return true;
+  }
   if (isPremium(u)) {
     u.totalRequests++;
     return true;
@@ -501,8 +514,9 @@ bot.use(async (ctx, next) => {
 // ─── /start ───
 bot.start(async (ctx) => {
   const u = getUser(ctx.from!.id, ctx.from!.username, ctx.from!.first_name);
-  const tokens = getTokensLeft(u);
+  const tokens = u.isAdmin ? -1 : getTokensLeft(u);
   const premium = isPremium(u);
+  const adminPremium = u.isAdmin;
   
   let text = `<b>🤖 Aisunio</b>\n\n`;
   text += `🧠 <b>AI ассистент</b> с ${MODELS.length} моделями\n`;
@@ -512,10 +526,10 @@ bot.start(async (ctx) => {
   
   if (premium) {
     text += `💎 <b>Premium активна</b>\n`;
-    text += `⏰ До: ${timeLeft(u.premiumUntil)}\n\n`;
+    text += `⏰ До: ${adminPremium ? '∞ Бессрочно' : timeLeft(u.premiumUntil)}\n\n`;
   } else {
     text += `🆓 <b>Free план</b>\n`;
-    text += `🎯 Осталось запросов сегодня: ${tokens}/35\n\n`;
+    text += `🎯 Осталось запросов сегодня: ${tokens === -1 ? '∞' : tokens + '/35'}\n\n`;
   }
   
   text += `<i>Напиши вопрос или выбери команду 👇</i>`;
@@ -743,11 +757,12 @@ bot.command('openclaw', async (ctx) => {
 // ─── /subscribe ───
 bot.command('subscribe', async (ctx) => {
   const u = getUser(ctx.from!.id, ctx.from!.username, ctx.from!.first_name);
+  const adminPremium = u.isAdmin;
   let text = `<b>💎 Подписка Premium</b>\n\n`;
   
   if (isPremium(u)) {
     text += `✅ У вас активна Premium\n`;
-    text += `⏰ До: ${timeLeft(u.premiumUntil)}\n\n`;
+    text += `⏰ До: ${adminPremium ? '∞ Бессрочно' : timeLeft(u.premiumUntil)}\n\n`;
     text += `Продлить?\n`;
   } else {
     text += `🆓 Сейчас: Free (35 запросов/день)\n\n`;
@@ -810,17 +825,19 @@ bot.action(/^pay_premium_(month|year)$/, async (ctx) => {
 // ─── /profile ───
 bot.command('profile', async (ctx) => {
   const u = getUser(ctx.from!.id, ctx.from!.username, ctx.from!.first_name);
-  const tokens = getTokensLeft(u);
+  const tokens = u.isAdmin ? -1 : getTokensLeft(u);
   const premium = isPremium(u);
+  const adminPremium = u.isAdmin;
   const model = getModel(u.modelIdx);
   
   let text = `<b>👤 Профиль</b>\n\n`;
   text += `Имя: ${u.firstName || u.username || '—'}\n`;
   text += `Username: @${u.username || '—'}\n`;
   text += `ID: ${u.telegramId}\n\n`;
-  text += `📊 <b>Подписка:</b> ${premium ? '💎 Premium' : '🆓 Free'}\n`;
-  if (premium) text += `⏰ До: ${timeLeft(u.premiumUntil)}\n`;
-  else text += `🎯 Запросов сегодня: ${tokens}/35\n`;
+  text += `📊 <b>Подписка:</b> ${adminPremium ? '👑 Premium ∞ (Админ)' : premium ? '💎 Premium' : '🆓 Free'}\n`;
+  if (adminPremium) text += `⏰ До: ∞ Бессрочно\n`;
+  else if (premium) text += `⏰ До: ${timeLeft(u.premiumUntil)}\n`;
+  else text += `🎯 Запросов сегодня: ${tokens === -1 ? '∞ Безлимит' : tokens + '/35'}\n`;
   text += `🤖 Модель: ${model.emoji} ${model.name}\n`;
   text += `📝 Всего запросов: ${u.totalRequests}\n`;
   text += `📅 С нами: ${fmtTime(u.joinedAt)}\n`;
@@ -1087,11 +1104,21 @@ bot.command('pass', async (ctx) => {
 });
 
 bot.command('quote', async (ctx) => {
+  const u = getUser(ctx.from!.id, ctx.from!.username, ctx.from!.first_name);
+  if (!useToken(u)) {
+    await ctx.replyWithHTML('⚠️ Лимит исчерпан. 💎 Premium для безлимита:', Markup.inlineKeyboard([[Markup.button.callback('💎 Premium', 'subscribe_menu')]]));
+    return;
+  }
   const result = await aiChat('Назови одну вдохновляющую цитату с автором. Только цитату и автора, не больше.', PROMPTS.default, MODELS[1]);
   await ctx.replyWithHTML(esc(result));
 });
 
 bot.command('joke', async (ctx) => {
+  const u = getUser(ctx.from!.id, ctx.from!.username, ctx.from!.first_name);
+  if (!useToken(u)) {
+    await ctx.replyWithHTML('⚠️ Лимит исчерпан. 💎 Premium для безлимита:', Markup.inlineKeyboard([[Markup.button.callback('💎 Premium', 'subscribe_menu')]]));
+    return;
+  }
   const result = await aiChat('Расскажи короткий смешной анекдот на русском.', PROMPTS.default, MODELS[1]);
   await ctx.replyWithHTML(esc(result));
 });
@@ -1241,16 +1268,18 @@ bot.action('subscribe_menu', async (ctx) => {
 bot.action('profile_cmd', async (ctx) => {
   await ctx.answerCbQuery();
   const u = getUser(ctx.from!.id, ctx.from!.username, ctx.from!.first_name);
-  const tokens = getTokensLeft(u);
+  const tokens = u.isAdmin ? -1 : getTokensLeft(u);
   const premium = isPremium(u);
+  const adminPremium = u.isAdmin;
   const model = getModel(u.modelIdx);
   let text = `<b>👤 Профиль</b>\n\n`;
   text += `Имя: ${u.firstName || u.username || '—'}\n`;
   text += `Username: @${u.username || '—'}\n`;
   text += `ID: ${u.telegramId}\n\n`;
-  text += `📊 Подписка: ${premium ? '💎 Premium' : '🆓 Free'}\n`;
-  if (premium) text += `⏰ До: ${timeLeft(u.premiumUntil)}\n`;
-  else text += `🎯 Запросов: ${tokens}/35\n`;
+  text += `📊 Подписка: ${adminPremium ? '👑 Premium ∞ (Админ)' : premium ? '💎 Premium' : '🆓 Free'}\n`;
+  if (adminPremium) text += `⏰ До: ∞ Бессрочно\n`;
+  else if (premium) text += `⏰ До: ${timeLeft(u.premiumUntil)}\n`;
+  else text += `🎯 Запросов: ${tokens === -1 ? '∞' : tokens + '/35'}\n`;
   text += `🤖 Модель: ${model.emoji} ${model.name}\n`;
   text += `📝 Запросов: ${u.totalRequests}\n`;
   await ctx.editMessageText(text, { parse_mode: 'HTML', ...Markup.inlineKeyboard([
@@ -1329,15 +1358,16 @@ bot.action('support_cmd', async (ctx) => {
 
 bot.action('back_start', async (ctx) => {
   const u = getUser(ctx.from!.id, ctx.from!.username, ctx.from!.first_name);
-  const tokens = getTokensLeft(u);
+  const tokens = u.isAdmin ? -1 : getTokensLeft(u);
   const premium = isPremium(u);
+  const adminPremium = u.isAdmin;
   let text = `<b>🤖 Aisunio</b>\n\n`;
   text += `🧠 AI с ${MODELS.length} моделями\n`;
   text += `🎨 Генерация • 🦅 OpenClaw • 📦 GitHub\n\n`;
   if (premium) {
-    text += `💎 <b>Premium</b> — ${timeLeft(u.premiumUntil)}\n\n`;
+    text += `💎 <b>Premium</b> — ${adminPremium ? '∞ Бессрочно (Админ)' : timeLeft(u.premiumUntil)}\n\n`;
   } else {
-    text += `🆓 <b>Free</b> — ${tokens}/35 запросов\n\n`;
+    text += `🆓 <b>Free</b> — ${tokens === -1 ? '∞' : tokens + '/35'} запросов\n\n`;
   }
   text += `<i>Напиши вопрос 👇</i>`;
   await ctx.editMessageText(text, { parse_mode: 'HTML', ...Markup.inlineKeyboard([
