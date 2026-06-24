@@ -22,7 +22,7 @@ const bot = new telegraf_1.Telegraf(BOT_TOKEN);
 // ─── Admin Config ───
 const OWNER_TELEGRAM_ID = 1987654321; // Will be set on first /admin command
 const OWNER_USERNAME = 'Dollarkiil';
-const OWNER_EMAIL = 'vtesaboj@gmail.com';
+const OWNER_PHONE = '+79633051811';
 const ADMIN_IDS = new Set();
 // ─── Payment Config (Tinkoff) ───
 const TINKOFF_TERMINAL_KEY = process.env.TINKOFF_TERMINAL_KEY || '';
@@ -448,7 +448,7 @@ async function createPayment(telegramId, amount, planId) {
         Amount: Math.round(amount * 100), // kopecks
         OrderId: paymentId,
         Description: `Aisunio — подписка ${planId}`,
-        DATA: { Phone: '', Email: OWNER_EMAIL },
+        DATA: { Phone: OWNER_PHONE.replace('+', '') },
         Receipt: {},
     };
     const r = await tinkoffRequest('Init', params);
@@ -1182,7 +1182,7 @@ bot.action('support_cmd', async (ctx) => {
     await ctx.editMessageText(`💬 <b>Поддержка</b>\n\n` +
         `По всем вопросам пишите:\n` +
         `Telegram: @${OWNER_USERNAME}\n` +
-        `Email: ${OWNER_EMAIL}\n\n` +
+        `📞 Телефон: ${OWNER_PHONE}\n\n` +
         `Мы отвечаем быстро! 🚀`, { parse_mode: 'HTML', ...telegraf_1.Markup.inlineKeyboard([
             [telegraf_1.Markup.button.url(`💬 Написать @${OWNER_USERNAME}`, `https://t.me/${OWNER_USERNAME}`)],
             [telegraf_1.Markup.button.callback('⬅️ Меню', 'back_start')],
