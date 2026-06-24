@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: aisunio-bot
+    runtime: docker
+    rootDir: bot
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    region: oregon
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: GITHUB_ACCESS_TOKEN
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000

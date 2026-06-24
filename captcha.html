@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Turnstile Solver</title>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+<body>
+<div id="turnstile-container"></div>
+<script>
+function onTurnstileSuccess(token) {
+    document.title = "TOKEN:" + token;
+    window._turnstileToken = token;
+    var div = document.createElement('div');
+    div.id = 'token-result';
+    div.textContent = token;
+    document.body.appendChild(div);
+}
+
+turnstile.render('#turnstile-container', {
+    sitekey: '0x4AAAAAAAWXJGBD7bONzLBd',
+    callback: onTurnstileSuccess,
+    'error-callback': function(err) {
+        document.title = "ERROR:" + err;
+    }
+});
+</script>
+</body>
+</html>

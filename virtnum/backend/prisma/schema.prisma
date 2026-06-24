@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  username      String   @unique
+  passwordHash  String
+  role          Role     @default(USER)
+  balance       Float    @default(0)
+  isActive      Boolean  @default(true)
+  isVerified    Boolean  @default(false)
+  refreshToken  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  orders        Order[]
+  favorites     Favorite[]
+  notifications Notification[]
+  transactions  Transaction[]
+  actionLogs    ActionLog[]
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Country {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  dialCode  String
+  flag      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  numbers   VirtualNumber[]
+}
+
+model VirtualNumber {
+  id          String        @id @default(cuid())
+  number      String        @unique
+  countryId   String
+  country     Country       @relation(fields: [countryId], references: [id])
+  status      NumberStatus  @default(AVAILABLE)
+  price       Float
+  isTelegram  Boolean       @default(false)
+  expiresAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  orders      Order[]
+  smsMessages SmsMessage[]
+  favorites   Favorite[]
+}
+
+enum NumberStatus {
+  AVAILABLE
+  BUSY
+  EXPIRED
+  BLOCKED
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  numberId  String
+  number    VirtualNumber @relation(fields: [numberId], references: [id])
+  status    OrderStatus @default(PENDING)
+  expiresAt DateTime
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  smsMessages SmsMessage[]
+}
+
+enum OrderStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+model SmsMessage {
+  id        String   @id @default(cuid())
+  numberId  String
+  number    VirtualNumber @relation(fields: [numberId], references: [id])
+  orderId   String?
+  order     Order?   @relation(fields: [orderId], references: [id])
+  sender    String
+  text      String
+  code      String?
+  createdAt DateTime @default(now())
+}
+
+model Transaction {
+  id          String            @id @default(cuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id])
+  type        TransactionType
+  amount      Float
+  description String
+  createdAt   DateTime          @default(now())
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  PURCHASE
+  REFUND
+}
+
+model Favorite {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  numberId      String
+  virtualNumber VirtualNumber @relation(fields: [numberId], references: [id])
+  createdAt     DateTime      @default(now())
+
+  @@unique([userId, numberId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model ActionLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String?
+  entityId  String?
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now())
+}
+
+model RateLimit {
+  id        String   @id @default(cuid())
+  ip        String
+  endpoint  String
+  count     Int      @default(1)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([ip, endpoint])
+}
