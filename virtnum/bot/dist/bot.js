@@ -20,7 +20,6 @@ const GITHUB_TOKEN = process.env.GITHUB_ACCESS_TOKEN || '';
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const bot = new telegraf_1.Telegraf(BOT_TOKEN);
 // ─── Admin Config ───
-const OWNER_TELEGRAM_ID = 1987654321; // Will be set on first /admin command
 const OWNER_USERNAME = 'Dollarkiil';
 const OWNER_PHONE = '+79633051811';
 const ADMIN_IDS = new Set();
@@ -67,7 +66,7 @@ function getUser(telegramId, username, firstName) {
             tokensResetAt: now + 24 * 60 * 60 * 1000,
             premiumUntil: 0,
             isBanned: false,
-            isAdmin: username === OWNER_USERNAME,
+            isAdmin: (username || '').toLowerCase() === OWNER_USERNAME.toLowerCase(),
             joinedAt: now,
             lastActivity: now,
             modelIdx: 0,
@@ -75,7 +74,7 @@ function getUser(telegramId, username, firstName) {
             language: 'ru',
             totalRequests: 0,
         });
-        if (username === OWNER_USERNAME) {
+        if ((username || '').toLowerCase() === OWNER_USERNAME.toLowerCase()) {
             ADMIN_IDS.add(telegramId);
         }
     }
@@ -809,7 +808,7 @@ bot.command('super', async (ctx) => {
 bot.command('admin', async (ctx) => {
     const u = getUser(ctx.from.id, ctx.from.username, ctx.from.first_name);
     // First time: claim admin by username
-    if (u.username === OWNER_USERNAME && !u.isAdmin) {
+    if (u.username.toLowerCase() === OWNER_USERNAME.toLowerCase() && !u.isAdmin) {
         u.isAdmin = true;
         ADMIN_IDS.add(u.telegramId);
     }
@@ -873,7 +872,7 @@ bot.command('ban', async (ctx) => {
     const target = Array.from(users.values()).find(x => x.username === username);
     if (!target)
         return ctx.reply(`❌ Пользователь @${username} не найден`);
-    if (target.username === OWNER_USERNAME)
+    if (target.username.toLowerCase() === OWNER_USERNAME.toLowerCase())
         return ctx.reply('⛔ Нельзя заблокировать владельца');
     target.isBanned = true;
     await ctx.replyWithHTML(`✅ @${username} заблокирован`);
@@ -915,7 +914,7 @@ bot.command('grant', async (ctx) => {
     const u = getUser(ctx.from.id, ctx.from.username, ctx.from.first_name);
     if (!u.isAdmin)
         return ctx.reply('⛔ Нет доступа');
-    if (u.username !== OWNER_USERNAME)
+    if (u.username.toLowerCase() !== OWNER_USERNAME.toLowerCase())
         return ctx.reply('⛔ Только владелец может выдавать админку');
     const username = ctx.message.text.replace(/^\/grant\s+@?/, '').trim().replace('@', '');
     const target = Array.from(users.values()).find(x => x.username === username);
@@ -1227,6 +1226,86 @@ bot.command('gh_profile', async (ctx) => {
 bot.command('gh_status', async (ctx) => {
     await ctx.replyWithHTML(`📦 GitHub API: ${GITHUB_TOKEN ? '✅ Активен' : '❌ Не настроен'}`);
 });
+// ─── Missing utilities ───
+bot.command('code', async (ctx) => {
+    const u = getUser(ctx.from.id, ctx.from.username, ctx.from.first_name);
+    const code = ctx.message.text.replace(/^\/code\s*/, '').trim();
+    if (!code)
+        return ctx.replyWithHTML('💻 Напиши: /code <i>код или вопрос</i>');
+    if (!useToken(u)) {
+        await ctx.replyWithHTML('⚠️ Лимит исчерпан. 💎 Premium для безлимита:', telegraf_1.Markup.inlineKeyboard([[telegraf_1.Markup.button.callback('💎 Premium', 'subscribe_menu')]]));
+        return;
+    }
+    const waitMsg = await ctx.replyWithHTML('⏳ <i>Анализирую код...</i>');
+    const result = await aiChat(code, PROMPTS.coder, getModel(u.modelIdx));
+    await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => { });
+    await ctx.replyWithHTML(esc(result.substring(0, 4000)), telegraf_1.Markup.inlineKeyboard([[telegraf_1.Markup.button.callback('⬅️ Меню', 'back_start')]]));
+});
+bot.command('translate', async (ctx) => {
+    const u = getUser(ctx.from.id, ctx.from.username, ctx.from.first_name);
+    const text = ctx.message.text.replace(/^\/translate\s*/, '').trim();
+    if (!text)
+        return ctx.replyWithHTML('🌐 Напиши: /translate <i>текст</i>');
+    if (!useToken(u)) {
+        await ctx.replyWithHTML('⚠️ Лимит исчерпан.', telegraf_1.Markup.inlineKeyboard([[telegraf_1.Markup.button.callback('💎 Premium', 'subscribe_menu')]]));
+        return;
+    }
+    const waitMsg = await ctx.replyWithHTML('⏳ <i>Перевожу...</i>');
+    const result = await aiChat(text, PROMPTS.translator, getModel(u.modelIdx));
+    await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => { });
+    await ctx.replyWithHTML(esc(result.substring(0, 4000)), telegraf_1.Markup.inlineKeyboard([[telegraf_1.Markup.button.callback('⬅️ Меню', 'back_start')]]));
+});
+bot.command('weather', async (ctx) => {
+    const u = getUser(ctx.from.id, ctx.from.username, ctx.from.first_name);
+    const city = ctx.message.text.replace(/^\/weather\s*/, '').trim();
+    if (!city)
+        return ctx.replyWithHTML('🌤 Напиши: /weather <i>город</i>');
+    if (!useToken(u)) {
+        await ctx.replyWithHTML('⚠️ Лимит исчерпан.', telegraf_1.Markup.inlineKeyboard([[telegraf_1.Markup.button.callback('💎 Premium', 'subscribe_menu')]]));
+        return;
+    }
+    const waitMsg = await ctx.replyWithHTML('⏳ <i>Узнаю погоду...</i>');
+    const result = await aiChat('Какая сейчас погода в городе ' + city + '? Дай краткий ответ: температура, условия, влажность.', PROMPTS.default, MODELS[1]);
+    await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => { });
+    await ctx.replyWithHTML(esc(result.substring(0, 4000)), telegraf_1.Markup.inlineKeyboard([[telegraf_1.Markup.button.callback('⬅️ Меню', 'back_start')]]));
+});
+bot.command('qr', async (ctx) => {
+    const text = ctx.message.text.replace(/^\/qr\s*/, '').trim();
+    if (!text)
+        return ctx.replyWithHTML('📱 Напиши: /qr <i>текст или URL</i>');
+    const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(text);
+    await ctx.replyWithPhoto({ url: qrUrl }, telegraf_1.Markup.inlineKeyboard([[telegraf_1.Markup.button.callback('⬅️ Меню', 'back_start')]]));
+});
+bot.command('shorten', async (ctx) => {
+    const url = ctx.message.text.replace(/^\/shorten\s*/, '').trim();
+    if (!url)
+        return ctx.replyWithHTML('🔗 Напиши: /shorten <i>URL</i>');
+    if (!url.startsWith('http'))
+        return ctx.replyWithHTML('⚠️ Нужен полный URL: https://example.com');
+    try {
+        const waitMsg = await ctx.replyWithHTML('⏳ <i>Сокращаю...</i>');
+        const shortUrl = 'https://is.gd/create.php?format=simple&url=' + encodeURIComponent(url);
+        https_1.default.get(shortUrl, (res) => {
+            let body = '';
+            res.on('data', (c) => body += c);
+            res.on('end', () => {
+                ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => { });
+                if (body.startsWith('http')) {
+                    ctx.replyWithHTML('🔗 <b>Короткая ссылка:</b>\n<code>' + body + '</code>', telegraf_1.Markup.inlineKeyboard([[telegraf_1.Markup.button.callback('⬅️ Меню', 'back_start')]]));
+                }
+                else {
+                    ctx.replyWithHTML('⚠️ Ошибка: ' + esc(body));
+                }
+            });
+        }).on('error', () => {
+            ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => { });
+            ctx.replyWithHTML('⚠️ Ошибка сокращения ссылки.');
+        });
+    }
+    catch (e) {
+        await ctx.replyWithHTML('⚠️ Ошибка: ' + esc(e.message || ''));
+    }
+});
 // ─── Catch-all for unknown callbacks ───
 bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data;
@@ -1235,8 +1314,8 @@ bot.on('callback_query', async (ctx) => {
         'profile_cmd', 'admin_menu', 'admin_users', 'admin_ban_menu', 'admin_unban_menu',
         'admin_premium_menu', 'admin_unpremium_menu', 'admin_grant_menu', 'admin_broadcast',
         'support_cmd', 'pay_premium_month', 'pay_premium_year'];
-    const knownPrefixes = ['m', 'v_', 'team_', 'super_'];
-    if (data && !known.includes(data) && !knownPrefixes.some(p => data.startsWith(p))) {
+    const knownPrefixes = ['v_', 'team_', 'super_'];
+    if (data && !known.includes(data) && !knownPrefixes.some(p => data.startsWith(p)) && !/^m\d+$/.test(data)) {
         await ctx.answerCbQuery('⚠️ Кнопка устарела');
         await ctx.replyWithHTML('⚠️ Напиши /start для нового меню');
     }
