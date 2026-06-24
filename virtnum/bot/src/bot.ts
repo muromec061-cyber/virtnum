@@ -1449,6 +1449,45 @@ bot.command('shorten', async (ctx) => {
 });
 
 
+
+// ─── /share — promotional sharing ───
+bot.command('share', async (ctx) => {
+  const shareText = `🤖 Aisunio — AI ассистент в Telegram
+
+✨ 24 AI модели: GPT-4o, DeepSeek, Llama, Mistral, Phi-4
+🎨 Генерация изображений (Flux)
+🦅 OpenClaw — автономный AI агент
+
+💎 Бесплатно: 35 запросов в день
+💎 Premium: безлимит от 499₽/мес
+
+🔗 Начать: https://t.me/Base447bot?start=promo
+📞 Поддержка: +79633051811`;
+
+  await ctx.replyWithHTML(
+    '📤 <b>Поделись ботом с друзьями!</b>\n\nНажми кнопку ниже, чтобы переслать:',
+    Markup.inlineKeyboard([
+      [Markup.button.switchToChat('📤 Поделиться в чат', shareText)],
+      [Markup.button.url('🔗 Открыть бота', 'https://t.me/Base447bot?start=promo')],
+      [Markup.button.callback('⬅️ Меню', 'back_start')],
+    ])
+  );
+});
+
+// ─── /promo — promo info ───
+bot.command('promo', async (ctx) => {
+  await ctx.replyWithHTML(
+    '🚀 <b>Промо-акция!</b>\n\n' +
+    'Пригласи 3 друзей — получи 7 дней Premium бесплатно!\n\n' +
+    'Поделись ссылкой:\n<code>https://t.me/Base447bot?start=promo</code>\n\n' +
+    '📞 Поддержка: +79633051811',
+    Markup.inlineKeyboard([
+      [Markup.button.switchToChat('📤 Поделиться', '🤖 Aisunio — 24 AI модели в Telegram! Бесплатно: https://t.me/Base447bot?start=promo')],
+      [Markup.button.callback('⬅️ Меню', 'back_start')],
+    ])
+  );
+});
+
 // ─── Catch-all for unknown callbacks ───
 bot.on('callback_query', async (ctx) => {
   const data = (ctx.callbackQuery as any).data;
