@@ -3,19 +3,12 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
-# Copy package files and install ALL deps (including typescript for build)
+# Copy minimal package.json and install
 COPY package.deploy.json ./package.json
-RUN npm install
+RUN npm install --production
 
-# Copy source
-COPY src/ ./src/
-COPY tsconfig.json ./
-
-# Compile ONLY bot.ts and index.ts
-RUN npx tsc --outDir dist --esModuleInterop --resolveJsonModule --skipLibCheck --module commonjs --target es2020 src/index.ts src/bot.ts
-
-# Remove devDependencies after build
-RUN npm prune --production
+# Copy pre-compiled dist (no build step!)
+COPY dist/ ./dist/
 
 # Non-root user
 RUN useradd -m -u 1000 user && chown -R user:user /app
