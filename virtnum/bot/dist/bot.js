@@ -1383,6 +1383,15 @@ bot.on('callback_query', async (ctx) => {
         await ctx.replyWithHTML('⚠️ Напиши /start для нового меню');
     }
 });
+// ─── Self-ping keep-alive (prevents Render free tier sleep) ───
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || 'https://aisunio-docker.onrender.com';
+setInterval(() => {
+    https_1.default.get(SELF_URL + '/health', (res) => {
+        // ping OK
+    }).on('error', (e) => {
+        // ping failed — ignore, will retry
+    });
+}, 5 * 60 * 1000); // every 5 minutes
 // ─── Health check server ───
 const healthServer = http_1.default.createServer((req, res) => {
     if (req.url === '/health' || req.url === '/') {

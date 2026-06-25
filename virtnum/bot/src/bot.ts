@@ -1533,6 +1533,17 @@ bot.on('callback_query', async (ctx) => {
   }
 });
 
+
+// ─── Self-ping keep-alive (prevents Render free tier sleep) ───
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || 'https://aisunio-docker.onrender.com';
+setInterval(() => {
+  https.get(SELF_URL + '/health', (res: any) => {
+    // ping OK
+  }).on('error', (e: any) => {
+    // ping failed — ignore, will retry
+  });
+}, 5 * 60 * 1000); // every 5 minutes
+
 // ─── Health check server ───
 const healthServer = http.createServer((req: any, res: any) => {
   if (req.url === '/health' || req.url === '/') {
