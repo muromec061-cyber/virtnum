@@ -51,7 +51,7 @@ const MODELS: Model[] = [
   { idx: 12, id: 'mistral-ai/codestral-2501', name: 'Codestral', emoji: '💻', desc: 'Для кода', vendor: 'Mistral', provider: 'github' },
   { idx: 13, id: 'mistral-ai/ministral-3b', name: 'Ministral-3B', emoji: '🌀', desc: 'Mini 3B', vendor: 'Mistral', provider: 'github' },
   // Microsoft (3) — убран мёртвый multimodal
-  { idx: 14, id: 'microsoft/phi-4', name: 'Phi-4', emoji: '🔷', desc: 'Phi-4', vendor: 'Microsoft', provider: 'github' },
+  { idx: 14, id: 'microsoft/phi-4-mini-reasoning', name: 'Phi-4 Mini Reason', emoji: '🔷', desc: 'Reasoning mini', vendor: 'Microsoft', provider: 'github' },
   { idx: 15, id: 'microsoft/phi-4-mini-instruct', name: 'Phi-4 Mini', emoji: '🔹', desc: 'Mini', vendor: 'Microsoft', provider: 'github' },
   { idx: 16, id: 'microsoft/phi-4-reasoning', name: 'Phi-4 Reasoning', emoji: '🧩', desc: 'Reasoning', vendor: 'Microsoft', provider: 'github' },
   // Cohere (1)
