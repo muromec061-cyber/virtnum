@@ -752,12 +752,28 @@ const healthServer = http_1.default.createServer((req, res) => {
     }
 });
 // ═══════════════════════════════════════════════
-// SELF-PING KEEP-ALIVE (prevents free tier sleep)
+// KEEP-ALIVE: multi-layer anti-sleep system
 // ═══════════════════════════════════════════════
-const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.KOYEB_PUBLIC_URL || `http://localhost:${PORT}`;
+const PING_URLS = [
+    process.env.RENDER_EXTERNAL_URL || 'https://aisunio-node.onrender.com',
+    process.env.SELF_PING_URL || '',
+].filter(Boolean);
+// Self-ping every 3 minutes (Render free sleeps after 15 min inactivity)
 setInterval(() => {
-    httpsGet(SELF_URL + '/health').catch(() => { });
-}, 4 * 60 * 1000); // every 4 minutes
+    for (const url of PING_URLS) {
+        httpsGet(url + '/health').then(() => {
+            // ping OK
+        }).catch((e) => {
+            console.log('Ping failed for', url, e.message);
+        });
+    }
+}, 3 * 60 * 1000);
+// Initial ping after 10 seconds
+setTimeout(() => {
+    for (const url of PING_URLS) {
+        httpsGet(url + '/health').catch(() => { });
+    }
+}, 10000);
 // ═══════════════════════════════════════════════
 // LAUNCH
 // ═══════════════════════════════════════════════
